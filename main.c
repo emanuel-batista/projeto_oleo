@@ -1,172 +1,173 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <windows.h> //se nao usar sleep, tirar essa
-#include <direct.h>
 #include "pss.h"
 
-void clear()
-{
-#ifdef __linux__
+void clear(){
+#ifdef _linux_
     system("clear");
 #elif _WIN32
     system("cls");
 #endif
 }
 
-typedef struct
-{
-    int dia, mes, ano;
-    double litragem;
-    char nome_arq[12];
+typedef struct {
+    long int dia, mes, ano;
+    double qtd;
+    char nome_arquivo[11];
 } reg;
 
+reg auxiliar;
 
+int transfere_txt_array_reg(char *nome_arquivo) {
+    FILE *ptr_arquivo_txt = fopen(nome_arquivo, "r");
+    if (ptr_arquivo_txt == NULL) return 1;
 
-void transBinario(char nome_arq[12], reg *Registros, int *indice_registros)
-{
+    FILE *ptr_arquivo_bin = fopen("dados.bin", "ab");
+    if (ptr_arquivo_bin == NULL) {
+        fclose(ptr_arquivo_txt);
+        return 1;
+    }
 
     reg registro_unico;
-    nome_arq[strlen(nome_arq) - 1] = '\0';
-
-
-    for (size_t i = 0; i < 13; i++)
-    {
-        printf("%d: %c\n", i, nome_arq[i]);
-    }
-    
-    
-    FILE *fp = fopen(nome_arq, "r");
-    if (fp == NULL)
-    {
-        perror("Erro ao localizar arquivo");
-        exit(-1);
-    }
-
-
-    char linha[19],        // dd/mm/aaaa 9999.99
-         string_data[11],  // dd/mm/aaaa
-         string_litros[8]; // 9999.99
-
+    char linha[19];        // dd/mm/aaaa 9999.99
+    char string_data[11];  // dd/mm/aaaa
+    char string_litros[8]; // 9999.99
     char dia[3], mes[3], ano[5], *caractere_nao_convertido;
 
-    while (fgets(linha, sizeof(linha), fp) != NULL) {
+    while (fgets(linha, sizeof(linha), ptr_arquivo_txt) != NULL) {
+        sscanf(linha, "%s %s\n", string_data, string_litros); // desmembrando em 2 partes
+        sscanf(string_data, "%2[0-9]/%2[0-9]/%4[0-9]", dia, mes, ano); // desmenbrando em 3 partes
 
-        printf("\nsaiu do arquivo .txt      : %s",linha);// importante para debug
-
-       /*  if(strspn(linha, "0123456789/.") != strlen(linha)){
-            printf("Erro ao converter linha, verifique o arquivo.");
-            exit(-1);
-        } */
-
-        sscanf(linha, "%s %s\n", string_data, string_litros); // desmembrando em 2 partes(a primeira parte é a data que ta em string e a segunda eh a litragem q tbm ta em string)
-
-        sscanf(string_data, " %2[0-9]/%2[0-9]/%4[0-9]", dia, mes, ano); // desmenbrando em 3 partes. É possivel fazer todos os desmenbramentos em uma unica linha
-
-        printf("desmembrado em 4 variaveis: |%s|%s|%s|%s|\n",dia, mes, ano,string_litros);// importante para debug
-
-        //Vou converter as variaveis desmenbradas em inteiros e decimal
+        // Convertendo as variáveis desmembradas em inteiros e decimal
         registro_unico.dia = strtol(dia, &caractere_nao_convertido, 10);
         registro_unico.mes = strtol(mes, &caractere_nao_convertido, 10);
         registro_unico.ano = strtol(ano, &caractere_nao_convertido, 10);
-        registro_unico.litragem = strtod(string_litros, &caractere_nao_convertido);
-        //Vou transferir o nome do arquivo para a variavel de registro
-        snprintf(registro_unico.nome_arq, sizeof(registro_unico.nome_arq), "%s", nome_arq);
+        registro_unico.qtd = strtod(string_litros, &caractere_nao_convertido);
 
-        registro_unico.nome_arq[10] = '\0';
-        registro_unico.nome_arq[2] = '/';
-        registro_unico.nome_arq[5] = '/';
+        // Transferindo o nome do arquivo para a variável de registro
+        snprintf(registro_unico.nome_arquivo, sizeof(registro_unico.nome_arquivo), "%s", nome_arquivo);
 
-		printf("transferido p/ 'reg'      : %ld %ld %ld %lf %s\n",registro_unico.dia, registro_unico.mes, registro_unico.ano, registro_unico.litragem, registro_unico.nome_arq); // importante para debug
+        // Ajustando o formato da string do nome do arquivo (conforme necessário)
+        registro_unico.nome_arquivo[10] = '\0';
+        registro_unico.nome_arquivo[2] = '/';
+        registro_unico.nome_arquivo[5] = '/';
 
-        //transformar em arquivo binario
-		
-        FILE *bn = fopen("dados.bin", "ab");
-        if(bn == NULL){
-            perror("Arquivo binario nao pode ser aberto");
-            exit(-1);
-        }
-        size_t num_written = fwrite(&registro_unico, sizeof(registro_unico), 1, bn);
-        if (num_written != 1) {
-            perror("Error writing to file");
-            fclose(bn);
-            exit(-1);
-        }
-
-        Registros[(*indice_registros)++] = registro_unico;
-        getchar();
+        // Escrevendo no arquivo binário
+        fwrite(&registro_unico, sizeof(reg), 1, ptr_arquivo_bin);
     }
-    
-    
-    fclose(fp);
-    printf("%d", *indice_registros);
-    sleep(5);
 
+    fclose(ptr_arquivo_txt);
+    fclose(ptr_arquivo_bin);
+    printf("\nDados Transferidos com sucesso!\n");
+    return 0;
 }
 
-int main(int argc, char *argv[])
-{
-    int *a;
-    clear();
-    //sleep(5);
-    char nome_arq[12];//passando o nome do arquivo de maneira bruta pra essa variavel
-    if (argc > 1) {
-        strcpy(nome_arq, argv[1]);//passando 
-    }else {
-        a = 1;
-        printf("Nenhum argumento fornecido.\n");
+
+int listar_dados_no_csv() {
+    
+    FILE *ptr_arquivo_bin = fopen("dados.bin", "rb");
+    if (ptr_arquivo_bin == NULL) return -2;
+
+    FILE *ptr_arquivo_csv = fopen("todos_registros.csv", "a");
+    if (ptr_arquivo_csv == NULL) {
+        fclose(ptr_arquivo_bin);
+        return -2;
     }
-   
-    reg Registros[10000];
-    int indice_registros = 0;
+
+    // Estrutura para armazenar cada registro lido
+    reg registro_unico;
+
+    // Adicionar cabeçalho apenas se o arquivo CSV estiver vazio
+    fseek(ptr_arquivo_csv, 0, SEEK_END);
+    long tamanho_arquivo = ftell(ptr_arquivo_csv);
+    if (tamanho_arquivo == 0) {
+        fprintf(ptr_arquivo_csv, "Data,Litros,NomeArq\n");
+    }
+
+    // Reiniciar a posição do arquivo binário para o início
+    fseek(ptr_arquivo_bin, 0, SEEK_SET);
+
+    printf("\n*************\n");
+    printf("DIA MES ANO  LITROS      LOTE\n");
+    printf("***********\n");
+    while (fread(&registro_unico, sizeof(reg), 1, ptr_arquivo_bin)) {
+        fprintf(ptr_arquivo_csv, "%ld/%ld/%ld,%.1lf,%s\n", registro_unico.dia, registro_unico.mes, registro_unico.ano, registro_unico.qtd, registro_unico.nome_arquivo);
+        printf("%ld/%ld/%ld     %.1lf     %s\n", registro_unico.dia, registro_unico.mes, registro_unico.ano, registro_unico.qtd, registro_unico.nome_arquivo);
+    }
+    printf("***********\n");
+    printf("Dados importados para todos_registros.csv\n\n");
+    fclose(ptr_arquivo_bin);
+    fclose(ptr_arquivo_csv);
+
+    return 0;
+}
+
+
+int main(int argc, char *argv[]) {
+
+    if (argc == 2) {
+        char *nomeArquivo = argv[1];
+        printf("\n\nIniciando com o arquivo: %s\n", nomeArquivo);
+        if (transfere_txt_array_reg(nomeArquivo) == 1) {
+            printf("Erro ao abrir o arquivo.\n");
+        }
+    }
+
+    reg registros[10000]; // define a struct
+    //int indice_registros = 0; // variável que define o indice dos registros
 
     int op = -1;
 
-    while (op != 5)
-    {
+    while (op != 5) {
 
-        do
-        {
-
-            clear();
-            printf("****************************\n");
+        do {
+           //clear();
+            printf("**********\n");
             printf(" 1 - Inserir lote           \n");
             printf(" 2 - Eliminar lote          \n");
             printf(" 3 - Somatorio mensal (csv) \n");
             printf(" 4 - Listagem (csv)         \n");
             printf(" 5 - Encerrar               \n");
-            printf("****************************\n");
+            printf("**********\n");
             op = input_d("Digite uma opcao: [1-5]:");
 
         } while (op < 1 || op > 5);
 
-        switch (op)
-        {
+        switch (op) {
 
-        case 1:
-            if (a == 1)
-            {
-                printf("Digite o nome do arquivo: ");
-                fgets(nome_arq, 15, stdin);
-                //nome_arq[strlen(nome_arq) - 1] = '\0';
-            }
-            
-            transBinario(nome_arq, Registros, &indice_registros);
+            case 1:
+                printf("\n\nCaso 1 - INSERIR LOTE\n");
+                char nomeArquivo[20];
+                input_s("Insira o nome do arquivo (Exemplo: 05_04_2024.txt): ", nomeArquivo, sizeof(nomeArquivo));
+                if (transfere_txt_array_reg(nomeArquivo) == 1) {
+                    printf("Erro ao abrir o arquivo.\n");
+                }
+                break;
 
-            a = 1;
-            break;
 
-        case 2:
-            break;
+            case 2:
+                printf("Caso 2");
+                break;
 
-        case 3:
-            break;
+            case 3:
+                printf("Caso 3");
+                break;
 
-        case 4:
-            break;
+            case 4:
+                printf("\n\nCaso 4 - Listagem (CSV)");
+                if (listar_dados_no_csv() == -2) {
+                    perror("Erro ao criar o arquivo CSV.\n");
+                }
+               // ler_do_binario_para_imprimir(registros);
+                break;
 
-        case 5:
-            return 0;
+            case 5:
+                printf("Encerrando o programa.\n");
+                break;
+
+            default:
+                printf("Opção inválida. Tente novamente.\n");
+                break;
         }
     }
 }
