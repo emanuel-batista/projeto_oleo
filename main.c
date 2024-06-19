@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include "pss.h"
 
 void clear(){
@@ -102,6 +104,68 @@ int listar_dados_no_csv() {
     return 0;
 }
 
+int eliminarLote() {
+    char data_a_excluir[12];
+    printf("\nDigite a data do lote a ser excluido(DD/MM/AAAA): ");
+    fgets(data_a_excluir, sizeof(data_a_excluir), stdin);
+
+    size_t indice_nova_linha = strcspn(data_a_excluir, "\n");
+
+    // Substitua o caractere de nova linha por '\0'
+    data_a_excluir[indice_nova_linha] = '\0';
+
+    FILE *arquivo_original = fopen("todos_registros.csv", "r");
+    if (arquivo_original == NULL) {
+        perror("Erro ao abrir arquivo original");
+        return 1;
+    }
+
+    // Gerar um nome de arquivo temporário exclusivo
+    char nome_arquivo_temp[] = "tempfileXXXXXX";
+    int temp_fd = mkstemp(nome_arquivo_temp);
+    if (temp_fd == -1) {
+        perror("Erro ao criar arquivo temporário");
+        fclose(arquivo_original);
+        return 1;
+    }
+
+    FILE *arquivo_temporario = fdopen(temp_fd, "w");
+    if (arquivo_temporario == NULL) {
+        perror("Erro ao abrir arquivo temporário");
+        close(temp_fd);
+        fclose(arquivo_original);
+        return 1;
+    }
+
+    char linha[256]; // Aumentar o tamanho do buffer para linhas longas
+    while (fgets(linha, sizeof(linha), arquivo_original) != NULL) {
+        char data_na_linha[11]; // Assumindo que a data está sempre no formato dd/mm/aaaa
+        sscanf(linha, "%*[^,],%*[^,],%10[^,\n]", data_na_linha);
+
+        if (strcmp(data_na_linha, data_a_excluir) != 0) {
+            fputs(linha, arquivo_temporario);
+        }
+    }
+
+    fclose(arquivo_original);
+    fclose(arquivo_temporario);
+
+    // Remover o arquivo original
+    if (remove("todos_registros.csv") != 0) {
+        perror("Erro ao remover o arquivo original");
+        return 1;
+    }
+
+    // Renomeie o arquivo temporário para substituir o arquivo original
+    if (rename(nome_arquivo_temp, "todos_registros.csv") != 0) {
+        perror("Erro ao renomear arquivo temporário");
+        return 1;
+    }
+
+    printf("Lote com a data %s excluído com sucesso!\n", data_a_excluir);
+    return 0;
+}
+
 
 int main(int argc, char *argv[]) {
 
@@ -146,7 +210,7 @@ int main(int argc, char *argv[]) {
 
 
             case 2:
-                printf("Caso 2");
+                eliminarLote();
                 break;
 
             case 3:
